@@ -34,7 +34,15 @@ client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=OPENROUTER_API_KEY,
 )
-        
+
+replacements = {
+        "Phrase:": "🇬🇧 <b>Phrase:</b>",
+        "Transcription:": "🔊 <b>Transcription:</b>",
+        "Translation:": "🇷🇺 <b>Translation:</b>",
+        "Context:": "💡 <i>Context:</i>",
+        "Example:": "💎 <b>Example:</b>"
+    }
+
 def generate_phrase():
     # ИДЕАЛЬНЫЙ ПРОМПТ
     # Просим выделить саму фразу жирным и строго соблюдать отступы
