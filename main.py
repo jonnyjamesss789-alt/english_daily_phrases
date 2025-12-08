@@ -50,18 +50,21 @@ client = OpenAI(
 def load_history():
     if not os.path.exists(HISTORY_FILE):
         return []
-    with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-        # Читаем фразы, убираем переносы строк и приводим к нижнему регистру
-        return [line.strip().lower() for line in f.readlines()]
+    try:
+        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+            return [line.strip().lower() for line in f.readlines()]
+    except Exception:
+        return []
 
 def save_to_history(phrase_text):
-    # Извлекаем саму английскую фразу из HTML (грубо, но эффективно)
-    # Ищем текст между 🇺🇸 <b>Phrase:</b> и 🔊
+    # Пытаемся вытащить фразу между Phrase: и Transcription:
     try:
-        start_marker = "🇺🇸 <b>Phrase:</b>"
-        end_marker = "🔊"
-        if start_marker in phrase_text and end_marker in phrase_text:
-            clean_phrase = phrase_text.split(start_marker)[1].split(end_marker)[0].strip()
+        # Упрощенный поиск для сохранения
+        if "Phrase:" in phrase_text:
+            parts = phrase_text.split("Phrase:")[1]
+            clean_phrase = parts.split("Transcription:")[0].split("🔊")[0].strip()
+            # Убираем HTML теги если остались
+            clean_phrase = clean_phrase.replace("<b>", "").replace("</b>", "").strip()
             
             with open(HISTORY_FILE, "a", encoding="utf-8") as f:
                 f.write(clean_phrase + "\n")
@@ -69,86 +72,96 @@ def save_to_history(phrase_text):
     except Exception as e:
         print(f"⚠️ Не удалось сохранить в историю: {e}")
 
+# --- ФОРМАТИРОВАНИЕ ---
+def format_content(content):
+    content = content.replace("```html", "").replace("```", "").strip()
+    
+    # Сначала чистим от старых тегов
+    clean_map = {
+        "<b>Phrase:</b>": "Phrase:", "<b>Transcription:</b>": "Transcription:",
+        "<b>Translation:</b>": "Translation:", "<b>Context:</b>": "Context:", 
+        "<b>Example:</b>": "Example:"
+    }
+    for k, v in clean_map.items():
+        content = content.replace(k, v)
+
+    # Применяем красивые теги и смайлы
+    replacements = {
+        "Phrase:": "🇺🇸 <b>Phrase:</b>",
+        "Transcription:": "🔊 <b>Transcription:</b>",
+        "Translation:": "🇷🇺 <b>Translation:</b>",
+        "Context:": "📃 <b>Context:</b>",
+        "Example:": "📝 <b>Example:</b>"
+    }
+    for key, val in replacements.items():
+        content = content.replace(key, val)
+        
+    return content
+
 # --- ГЕНЕРАЦИЯ ---
+def try_generate_once(current_topic):
+    prompt = f"""
+    Сгенерируй одну полезную разговорную фразу на английском языке (уровень B1-B2).
+    ТЕМА: {current_topic}.
+    Фраза НЕ должна быть банальной.
+    
+    Вся описательная часть СТРОГО на РУССКОМ. Используй HTML.
+    Формат ответа строго такой:
+
+    Phrase: [Сама фраза]
+    Transcription: <i>[Транскрипция русскими буквами]</i>
+    Translation: [Перевод]
+    Context: <i>[Описание ситуации на русском]</i>
+    Example:
+    <blockquote>
+    — [Диалог] (перевод)
+    — [Диалог] (перевод)
+    </blockquote>
+    """
+
+    for model in MODELS:
+        try:
+            print(f"   ⏳ Запрос к {model}...")
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                timeout=TIMEOUT_SECONDS,
+                extra_headers={"HTTP-Referer": "https://github.com"}
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"   ❌ Ошибка модели {model}: {e}")
+            time.sleep(1)
+    return None
+
 def generate_unique_phrase():
     used_phrases = load_history()
     
-    # Делаем до 3 попыток, если попадается дубликат
+    # Делаем 3 попытки найти уникальную фразу
     for attempt in range(3):
-        current_topic = random.choice(TOPICS)
-        print(f"🎲 Попытка {attempt+1}. Тема: {current_topic}")
-
-        prompt = f"""
-        Сгенерируй одну полезную разговорную фразу на английском языке (уровень B1-B2).
-        ТЕМА: {current_topic}.
-        Фраза НЕ должна быть банальной (как "How are you").
+        topic = random.choice(TOPICS)
+        print(f"🎲 Попытка {attempt+1}. Тема: {topic}")
         
-        Вся описательная часть СТРОГО на РУССКОМ. Используй HTML.
-        Формат ответа строго такой:
-
-        Phrase: [Сама фраза]
-
-        Transcription: <i>[Транскрипция русскими буквами]</i>
-
-        Translation: [Перевод]
-
-        Context: <i>[Описание ситуации на русском]</i>
-
-        Example:
-        <blockquote>
-        — [Диалог] (перевод)
-        — [Диалог] (перевод)
-        </blockquote>
-        """
+        raw_content = try_generate_once(topic)
         
-        for model in MODELS:
-            try:
-                print(f"   ⏳ Запрос к {model}...")
-                response = client.chat.completions.create(
-                    model=model,
-                    messages=[{"role": "user", "content": prompt}],
-                    timeout=TIMEOUT_SECONDS,
-                    extra_headers={"HTTP-Referer": "https://github.com"}
-                )
-                
-                content = response.choices[0].message.content
-                content = content.replace("```html", "").replace("```", "").strip()
+        if not raw_content:
+            continue
 
-                # Форматирование и Смайлы
-                replacements = {
-                    "Phrase:": "🇺🇸 <b>Phrase:</b>",
-                    "Transcription:": "🔊 <b>Transcription:</b>",
-                    "Translation:": "🇷🇺 <b>Translation:</b>",
-                    "Context:": "📃 <b>Context:</b>",
-                    "Example:": "📝 <b>Example:</b>"
-                }
-                # Сначала чистим от старых тегов, если они есть
-                clean_content = content.replace("<b>Phrase:</b>", "Phrase:") 
-                
-                # Применяем красивые теги
-                for key, val in replacements.items():
-                    clean_content = clean_content.replace(key, val)
-
-                # --- ПРОВЕРКА НА ДУБЛИКАТЫ ---
-                # Пытаемся найти фразу внутри текста
-                is_duplicate = False
-                for used in used_phrases:
-                    if used in clean_content.lower():
-                        print(f"♻️ ДУБЛИКАТ! Фраза '{used}' уже была. Пробуем снова...")
-                        is_duplicate = True
-                        break
-                
-                if is_duplicate:
-                    break # Выходим из цикла моделей, идем на следующую попытку генерации (attempt)
-                
-                # Если не дубликат - возвращаем результат
-                return clean_content
-
-            except Exception as e:
-                print(f"   ❌ Ошибка модели: {e}")
-                time.sleep(1)
+        # Форматируем
+        final_text = format_content(raw_content)
         
-    print("💀 Не удалось сгенерировать уникальную фразу за 3 попытки.")
+        # Проверяем на дубликаты
+        is_duplicate = False
+        for used in used_phrases:
+            if len(used) > 5 and used in final_text.lower():
+                print(f"♻️ ДУБЛИКАТ! Фраза '{used}' уже была.")
+                is_duplicate = True
+                break
+        
+        if not is_duplicate:
+            return final_text
+
+    print("💀 Не удалось сгенерировать уникальную фразу.")
     return None
 
 def send_telegram_message(text):
@@ -165,6 +178,6 @@ if __name__ == "__main__":
     phrase = generate_unique_phrase()
     if phrase:
         send_telegram_message(phrase)
-        save_to_history(phrase) # Сохраняем в файл
+        save_to_history(phrase)
     else:
         print("Остановка.")
