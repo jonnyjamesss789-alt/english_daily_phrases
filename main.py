@@ -35,18 +35,6 @@ client = OpenAI(
     api_key=OPENROUTER_API_KEY,
 )
 
-replacements = {
-        "Phrase:": "🇬🇧 <b>Phrase:</b>",
-        "Transcription:": "🔊 <b>Transcription:</b>",
-        "Translation:": "🇷🇺 <b>Translation:</b>",
-        "Context:": "💡 <i>Context:</i>",
-        "Example:": "💎 <b>Example:</b>"
-    }
-for old, new in replacements.items():
-        # Заменяем и с двоеточием, и без (на всякий случай)
-        content = content.replace(old, new)
-        content = content.replace(old.replace(":", ""), new)
-
 def generate_phrase():
     # ИДЕАЛЬНЫЙ ПРОМПТ
     # Просим выделить саму фразу жирным и строго соблюдать отступы
@@ -71,6 +59,16 @@ def generate_phrase():
         "— [Продолжение диалога] (в скобках перевод)\n"
         "</blockquote>"
     )
+   
+def format_message(content):
+    replacements = {
+        "Phrase:": "🇬🇧 <b>Phrase:</b>",
+        "Transcription:": "🔊 <b>Transcription:</b>",
+        "Translation:": "🇷🇺 <b>Translation:</b>",
+        "Context:": "💡 <i>Context:</i>",
+        "Example:": "💎 <b>Example:</b>"
+    }
+
  
     for model in MODELS:
         print(f"--- [2] Пробую модель: {model} ...")
