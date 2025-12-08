@@ -4,21 +4,25 @@ from flask import Flask
 from openai import OpenAI
 import requests
 
-# Инициализация Flask приложения
 app = Flask(__name__)
 
-# Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-# Получаем ключи из переменных окружения (настроим их на Render позже)
+# Получаем переменные.
+# Я переименовал переменную ключа в OPENROUTER_API_KEY для ясности.
+# Не забудь поменять имя переменной в настройках Render!
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHANNEL_ID = os.environ.get("CHANNEL_ID") 
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+# ВАЖНО: Добавляем base_url для OpenRouter
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=OPENROUTER_API_KEY,
+)
 
 def generate_phrase():
-    """Генерирует контент через OpenAI"""
+    """Генерирует контент через Qwen (OpenRouter)"""
     prompt = (
         "Сгенерируй одну разговорную фразу на английском (B1-B2). "
         "Дай ответ СТРОГО в таком формате, без лишних слов:\n"
@@ -27,18 +31,25 @@ def generate_phrase():
         "🇷🇺 **Translation:** [Перевод]\n"
         "💡 **Context:** [1 предложение, где используется]"
     )
+    
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini", # Или gpt-3.5-turbo
-            messages=[{"role": "user", "content": prompt}]
+            # Здесь указываем конкретную бесплатную модель Qwen
+            # Проверь актуальный список бесплатных моделей на openrouter.ai/models
+            model="qwen/qwen3-4b:free", 
+            messages=[{"role": "user", "content": prompt}],
+            # Опционально: указываем название твоего сайта (требование OpenRouter)
+            extra_headers={
+                "HTTP-Referer": "https://telegram-bot", 
+                "X-Title": "English Bot",
+            }
         )
         return response.choices[0].message.content
     except Exception as e:
-        logging.error(f"OpenAI Error: {e}")
+        logging.error(f"OpenRouter Error: {e}")
         return None
 
 def send_telegram_message(text):
-    """Отправляет сообщение в канал через обычный запрос"""
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": CHANNEL_ID,
@@ -52,7 +63,6 @@ def send_telegram_message(text):
 def index():
     return "Bot is alive!", 200
 
-# Эту ссылку будет дергать Cron-job
 @app.route('/trigger_post', methods=['GET'])
 def trigger_post():
     phrase = generate_phrase()
@@ -63,8 +73,7 @@ def trigger_post():
         else:
             return f"Telegram Error: {result}", 500
     else:
-        return "OpenAI generation failed", 500
+        return "Generation failed", 500
 
 if __name__ == '__main__':
-    # Эта часть нужна для локального запуска, на сервере используется gunicorn
     app.run(host='0.0.0.0', port=5000)
