@@ -8,12 +8,23 @@ import random
 TIMEOUT_SECONDS = 50
 HISTORY_FILE = "history.txt"
 
-# МОДЕЛИ
+# ОБНОВЛЕННЫЙ СПИСОК МОДЕЛЕЙ (Более легкие и доступные)
 MODELS = [
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "microsoft/phi-3-medium-128k-instruct:free",
-    "google/gemini-2.0-flash-exp:free",
-    "huggingfaceh4/zephyr-7b-beta:free"
+    # Google (Разные версии, если одна занята - сработает другая)
+    "google/gemini-2.0-flash-lite-preview-02-05:free",
+    "google/gemini-2.0-pro-exp-02-05:free",
+    
+    # Qwen (Очень надежная и быстрая)
+    "qwen/qwen-2.5-7b-instruct:free",
+    
+    # Llama (Берем 8b, так как на 70b часто лимиты)
+    "meta-llama/llama-3-8b-instruct:free",
+    
+    # DeepSeek (Популярная сейчас)
+    "deepseek/deepseek-r1-distill-llama-70b:free",
+    
+    # Mistral (Стабильная классика)
+    "mistralai/mistral-7b-instruct:free"
 ]
 
 # ТЕМЫ
@@ -59,10 +70,8 @@ def load_history():
 def save_to_history(text):
     try:
         if "Phrase:" in text:
-            # Вырезаем фразу для сохранения
             p = text.split("Phrase:")[1]
             clean = p.split("Transcription:")[0].strip()
-            # Убираем HTML теги
             clean = clean.replace("<b>", "").replace("</b>", "")
             
             with open(HISTORY_FILE, "a", encoding="utf-8") as f:
@@ -75,7 +84,6 @@ def save_to_history(text):
 def format_text(text):
     text = text.replace("```html", "").replace("```", "").strip()
     
-    # 1. Сначала убираем старые теги, если нейросеть их добавила
     clean_pairs = {
         "<b>Phrase:</b>": "Phrase:", "<b>Transcription:</b>": "Transcription:",
         "<b>Translation:</b>": "Translation:", "<b>Context:</b>": "Context:", 
@@ -84,7 +92,6 @@ def format_text(text):
     for k, v in clean_pairs.items():
         text = text.replace(k, v)
 
-    # 2. Ставим новые красивые теги и смайлы
     emoji_pairs = {
         "Phrase:": "🇺🇸 <b>Phrase:</b>",
         "Transcription:": "🔊 <b>Transcription:</b>",
@@ -133,7 +140,6 @@ Example:
 def main_loop():
     history = load_history()
     
-    # 3 попытки найти уникальную фразу
     for i in range(3):
         topic = random.choice(TOPICS)
         print(f"🎲 Topic: {topic}")
@@ -144,7 +150,6 @@ def main_loop():
             
         final_text = format_text(raw_text)
         
-        # Проверка на дубликаты
         is_dup = False
         for h in history:
             if len(h) > 5 and h in final_text.lower():
