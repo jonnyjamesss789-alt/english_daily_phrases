@@ -60,16 +60,6 @@ def generate_phrase():
         "</blockquote>"
     )
    
-def format_message(content):
-    replacements = {
-        "Phrase:": "🇬🇧 <b>Phrase:</b>",
-        "Transcription:": "🔊 <b>Transcription:</b>",
-        "Translation:": "🇷🇺 <b>Translation:</b>",
-        "Context:": "💡 <i>Context:</i>",
-        "Example:": "💎 <b>Example:</b>"
-    }
-
- 
     for model in MODELS:
         print(f"--- [2] Пробую модель: {model} ...")
         try:
