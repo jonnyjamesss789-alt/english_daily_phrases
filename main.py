@@ -4,14 +4,14 @@ from openai import OpenAI
 import time
 
 # --- НАСТРОЙКИ ---
-TIMEOUT_SECONDS = 40  # Ждем ответа от каждой модели не более 40 сек
+TIMEOUT_SECONDS = 40
 
-# СПИСОК МОДЕЛЕЙ (Бот будет пробовать их по очереди)
+# СПИСОК МОДЕЛЕЙ (Оставляем, так как это спасло нас от ошибки 429)
 MODELS = [
-    "google/gemini-2.0-flash-lite-preview-02-05:free", # Самая умная
-    "qwen/qwen-2.5-7b-instruct:free",                  # Хорошая альтернатива
-    "meta-llama/llama-3.3-70b-instruct:free",          # Мощная Llama
-    "microsoft/phi-3-mini-128k-instruct:free"          # Легкая и быстрая
+    "google/gemini-2.0-flash-lite-preview-02-05:free",
+    "qwen/qwen-2.5-7b-instruct:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "microsoft/phi-3-mini-128k-instruct:free"
 ]
 
 print("--- [1] НАЧАЛО РАБОТЫ СКРИПТА ---")
@@ -20,23 +20,32 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 
-# Настройка клиента
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=OPENROUTER_API_KEY,
 )
 
 def generate_phrase():
+    # Обновленный промпт для красивого оформления
     prompt = (
-        "Generate one useful English speaking phrase (B1-B2 level). "
-        "Strict format:\n"
-        "🇬🇧 **Phrase:** [Phrase]\n"
-        "🔊 **Transcription:** [Transcription]\n"
-        "🇷🇺 **Translation:** [Russian translation]\n"
-        "💡 **Context:** [Short usage context]"
+        "Сгенерируй одну полезную разговорную фразу на английском языке (уровень B1-B2). "
+        "Вся описательная часть (контекст, перевод) должна быть СТРОГО на РУССКОМ языке. "
+        "Сделай отступы (пустые строки) между пунктами. "
+        "Формат ответа должен быть в точности таким:\n\n"
+        
+        "🇬🇧 **Phrase:** [Сама фраза]\n\n"
+        
+        "🔊 **Transcription:** [Транскрипция]\n\n"
+        
+        "🇷🇺 **Translation:** [Перевод фразы на русский]\n\n"
+        
+        "💡 **Context:** [Объясни на русском в 1-2 предложениях, в какой ситуации эту фразу используют]\n\n"
+        
+        "📝 **Example:**\n"
+        "— [Пример предложения или мини-диалога на английском с этой фразой]\n"
+        "— ([Перевод этого примера на русский])"
     )
     
-    # Цикл перебора моделей
     for model in MODELS:
         print(f"--- [2] Пробую модель: {model} ...")
         try:
@@ -55,12 +64,11 @@ def generate_phrase():
             return response.choices[0].message.content
             
         except Exception as e:
-            # Если ошибка - просто пишем в лог и идем к следующей модели
             print(f"❌ ОШИБКА с моделью {model}: {e}")
             print("Переключаюсь на следующую...")
-            time.sleep(1) # Даем секунду передышки
+            time.sleep(1)
             
-    return None # Если вообще никто не ответил
+    return None
 
 def send_telegram_message(text):
     print("--- [3] Отправляю сообщение в Telegram...")
@@ -68,7 +76,7 @@ def send_telegram_message(text):
     data = {
         "chat_id": CHANNEL_ID,
         "text": text,
-        "parse_mode": "Markdown"
+        "parse_mode": "Markdown" # Важно для жирного текста
     }
     try:
         response = requests.post(url, data=data, timeout=10)
