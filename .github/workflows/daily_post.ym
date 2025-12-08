@@ -2,13 +2,7 @@ name: Daily English Phrase
 
 on:
   schedule:
-    # Время в формате Cron (UTC). 
-    # Москва = UTC+3.
-    # 6:00 UTC = 9:00 МСК
-    # 15:00 UTC = 18:00 МСК
     - cron: '0 6,15 * * *'
-  
-  # Чтобы можно было запустить вручную кнопку для теста
   workflow_dispatch:
 
 jobs:
