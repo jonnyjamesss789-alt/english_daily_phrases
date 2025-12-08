@@ -42,7 +42,6 @@ def generate_phrase():
         "Сгенерируй одну полезную разговорную фразу на английском языке (уровень B1-B2). "
         "Вся описательная часть должна быть СТРОГО на РУССКОМ языке. "
         "Используй HTML-теги. Обязательно делай отступы между блоками. "
-        "ВСЕГДА вставляй смайлы подходящие по смыслу перед словами PHRASE, TRANSCRIPTION, TRANSLATION, CONTEXT, EXAMPLE. "
         "Формат ответа строго такой:\n\n"
         
         "<b>Phrase:</b> [Сама фраза]\n\n"
@@ -75,6 +74,33 @@ def generate_phrase():
             
             content = response.choices[0].message.content
             content = content.replace("```html", "").replace("```", "").strip()
+            return content
+
+        # --- ПРИНУДИТЕЛЬНАЯ РАССТАНОВКА СМАЙЛОВ И ТЕГОВ ---
+            # Это гарантирует, что смайлы будут, даже если нейросеть их забудет
+            
+            # 1. Сначала приводим к чистому виду (убираем лишние теги если они есть)
+            replacements_clean = {
+                "<b>Phrase:</b>": "Phrase:", "<b>Transcription:</b>": "Transcription:",
+                "<b>Translation:</b>": "Translation:", "<b>Context:</b>": "Context:",
+                "<b>Example:</b>": "Example:"
+            }
+            for old, new in replacements_clean.items():
+                content = content.replace(old, new)
+
+            # 2. Теперь ставим нужные смайлы и жирный шрифт
+            # Порядок замены важен!
+            final_replacements = {
+                "Phrase:": "🇺🇸 <b>Phrase:</b>",
+                "Transcription:": "🔊 <b>Transcription:</b>",
+                "Translation:": "🇷🇺 <b>Translation:</b>",
+                "Context:": "📃 <b>Context:</b>",
+                "Example:": "📝 <b>Example:</b>"
+            }
+            
+            for key, val in final_replacements.items():
+                content = content.replace(key, val)
+
             return content
             
         except Exception as e:
