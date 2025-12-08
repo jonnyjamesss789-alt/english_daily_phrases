@@ -1,28 +1,19 @@
 import os
-import logging
-from flask import Flask
-from openai import OpenAI
 import requests
+from openai import OpenAI
 
-app = Flask(__name__)
-
-logging.basicConfig(level=logging.INFO)
-
-# Получаем переменные.
-# Я переименовал переменную ключа в OPENROUTER_API_KEY для ясности.
-# Не забудь поменять имя переменной в настройках Render!
+# Получаем секреты из настроек GitHub
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-CHANNEL_ID = os.environ.get("CHANNEL_ID") 
+CHANNEL_ID = os.environ.get("CHANNEL_ID")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 
-# ВАЖНО: Добавляем base_url для OpenRouter
+# Настройка клиента OpenRouter (Qwen)
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=OPENROUTER_API_KEY,
 )
 
 def generate_phrase():
-    """Генерирует контент через Qwen (OpenRouter)"""
     prompt = (
         "Сгенерируй одну разговорную фразу на английском (B1-B2). "
         "Дай ответ СТРОГО в таком формате, без лишних слов:\n"
@@ -31,22 +22,18 @@ def generate_phrase():
         "🇷🇺 **Translation:** [Перевод]\n"
         "💡 **Context:** [1 предложение, где используется]"
     )
-    
     try:
         response = client.chat.completions.create(
-            # Здесь указываем конкретную бесплатную модель Qwen
-            # Проверь актуальный список бесплатных моделей на openrouter.ai/models
-            model="qwen/qwen3-4b:free", 
+            model="qwen/qwen-2.5-7b-instruct:free",
             messages=[{"role": "user", "content": prompt}],
-            # Опционально: указываем название твоего сайта (требование OpenRouter)
             extra_headers={
-                "HTTP-Referer": "https://telegram-bot", 
-                "X-Title": "English Bot",
+                "HTTP-Referer": "https://github.com",
+                "X-Title": "English Telegram Bot",
             }
         )
         return response.choices[0].message.content
     except Exception as e:
-        logging.error(f"OpenRouter Error: {e}")
+        print(f"Ошибка генерации: {e}")
         return None
 
 def send_telegram_message(text):
@@ -57,23 +44,14 @@ def send_telegram_message(text):
         "parse_mode": "Markdown"
     }
     response = requests.post(url, data=data)
-    return response.json()
+    if response.status_code == 200:
+        print("Сообщение отправлено!")
+    else:
+        print(f"Ошибка отправки: {response.text}")
 
-@app.route('/')
-def index():
-    return "Bot is alive!", 200
-
-@app.route('/trigger_post', methods=['GET'])
-def trigger_post():
+if __name__ == "__main__":
     phrase = generate_phrase()
     if phrase:
-        result = send_telegram_message(phrase)
-        if result.get("ok"):
-            return "Message sent successfully", 200
-        else:
-            return f"Telegram Error: {result}", 500
+        send_telegram_message(phrase)
     else:
-        return "Generation failed", 500
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+        print("Не удалось получить фразу.")
