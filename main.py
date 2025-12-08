@@ -8,7 +8,7 @@ import random
 TIMEOUT_SECONDS = 50
 HISTORY_FILE = "history.txt"
 
-# СПИСОК МОДЕЛЕЙ
+# МОДЕЛИ
 MODELS = [
     "meta-llama/llama-3.3-70b-instruct:free",
     "microsoft/phi-3-medium-128k-instruct:free",
@@ -16,7 +16,7 @@ MODELS = [
     "huggingfaceh4/zephyr-7b-beta:free"
 ]
 
-# СПИСОК ТЕМ
+# ТЕМЫ
 TOPICS = [
     "Travel", "Business", "Emotions", "Food", "Friendship", "Conflict", 
     "Money", "Health", "Time", "Weather", "Slang", "Idioms", "Hobbies", 
@@ -24,20 +24,21 @@ TOPICS = [
     "Surprise", "Agreement", "Politeness", "Job Interview", "Movies"
 ]
 
-print("--- [1] START ---")
+print("--- START ---")
 
-def get_env_key(key_name):
-    value = os.environ.get(key_name)
-    if value:
-        return str(value).strip()
+# --- КЛЮЧИ ---
+def get_key(name):
+    val = os.environ.get(name)
+    if val:
+        return str(val).strip()
     return None
 
-BOT_TOKEN = get_env_key("BOT_TOKEN")
-CHANNEL_ID = get_env_key("CHANNEL_ID")
-OPENROUTER_API_KEY = get_env_key("OPENROUTER_API_KEY")
+BOT_TOKEN = get_key("BOT_TOKEN")
+CHANNEL_ID = get_key("CHANNEL_ID")
+OPENROUTER_API_KEY = get_key("OPENROUTER_API_KEY")
 
 if not BOT_TOKEN or not CHANNEL_ID or not OPENROUTER_API_KEY:
-    print("❌ KEYS MISSING!")
+    print("❌ KEYS MISSING")
     exit(1)
 
 client = OpenAI(
@@ -56,28 +57,52 @@ def load_history():
         return []
 
 def save_to_history(text):
-    # Простое сохранение без лишних проверок
     try:
         if "Phrase:" in text:
-            part = text.split("Phrase:")[1]
-            # Берем кусок до транскрипции
-            clean = part.split("Transcription:")[0].strip()
-            # Убираем возможные теги
+            # Вырезаем фразу для сохранения
+            p = text.split("Phrase:")[1]
+            clean = p.split("Transcription:")[0].strip()
+            # Убираем HTML теги
             clean = clean.replace("<b>", "").replace("</b>", "")
             
             with open(HISTORY_FILE, "a", encoding="utf-8") as f:
                 f.write(clean + "\n")
             print(f"💾 Saved: {clean}")
     except Exception as e:
-        print(f"⚠️ Save error: {e}")
+        print(f"⚠️ Save Error: {e}")
+
+# --- ФОРМАТИРОВАНИЕ ---
+def format_text(text):
+    text = text.replace("```html", "").replace("```", "").strip()
+    
+    # 1. Сначала убираем старые теги, если нейросеть их добавила
+    clean_pairs = {
+        "<b>Phrase:</b>": "Phrase:", "<b>Transcription:</b>": "Transcription:",
+        "<b>Translation:</b>": "Translation:", "<b>Context:</b>": "Context:", 
+        "<b>Example:</b>": "Example:"
+    }
+    for k, v in clean_pairs.items():
+        text = text.replace(k, v)
+
+    # 2. Ставим новые красивые теги и смайлы
+    emoji_pairs = {
+        "Phrase:": "🇺🇸 <b>Phrase:</b>",
+        "Transcription:": "🔊 <b>Transcription:</b>",
+        "Translation:": "🇷🇺 <b>Translation:</b>",
+        "Context:": "📃 <b>Context:</b>",
+        "Example:": "📝 <b>Example:</b>"
+    }
+    for k, v in emoji_pairs.items():
+        text = text.replace(k, v)
+        
+    return text
 
 # --- ГЕНЕРАЦИЯ ---
-def get_prompt(topic):
-    return f"""
+def ask_ai(topic):
+    prompt = f"""
 Generate one useful English phrase (B1-B2 level).
 TOPIC: {topic}.
-Do not use Markdown blocks (no ```).
-Use HTML tags strictly.
+Do not use Markdown blocks. Use HTML tags.
 
 Format:
 Phrase: [Phrase]
@@ -90,79 +115,63 @@ Example:
 - [Dialog]
 </blockquote>
 """
+    for model in MODELS:
+        try:
+            print(f"⏳ Asking {model}...")
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                timeout=TIMEOUT_SECONDS,
+                extra_headers={"HTTP-Referer": "https://github.com"}
+            )
+            return resp.choices[0].message.content
+        except Exception as e:
+            print(f"❌ Error {model}: {e}")
+            time.sleep(1)
+    return None
 
-def generate_phrase():
+def main_loop():
     history = load_history()
     
-    for attempt in range(3):
+    # 3 попытки найти уникальную фразу
+    for i in range(3):
         topic = random.choice(TOPICS)
         print(f"🎲 Topic: {topic}")
         
-        prompt = get_prompt(topic)
+        raw_text = ask_ai(topic)
+        if not raw_text:
+            continue
+            
+        final_text = format_text(raw_text)
         
-        for model in MODELS:
-            try:
-                print(f"   ⏳ Asking {model}...")
-                response = client.chat.completions.create(
-                    model=model,
-                    messages=[{"role": "user", "content": prompt}],
-                    timeout=TIMEOUT_SECONDS,
-                    extra_headers={"HTTP-Referer": "[https://github.com](https://github.com)"}
-                )
-                content = response.choices[0].message.content
-                content = content.replace("```html", "").replace("```", "").strip()
-                
-                # --- ФОРМАТИРОВАНИЕ ---
-                # Очистка от старых тегов
-                content = content.replace("<b>Phrase:</b>", "Phrase:")
-                content = content.replace("<b>Transcription:</b>", "Transcription:")
-                content = content.replace("<b>Translation:</b>", "Translation:")
-                content = content.replace("<b>Context:</b>", "Context:")
-                content = content.replace("<b>Example:</b>", "Example:")
-                
-                # Добавление красивых тегов и смайлов
-                content = content.replace("Phrase:", "🇺🇸 <b>Phrase:</b>")
-                content = content.replace("Transcription:", "🔊 <b>Transcription:</b>")
-                content = content.replace("Translation:", "🇷🇺 <b>Translation:</b>")
-                content = content.replace("Context:", "📃 <b>Context:</b>")
-                content = content.replace("Example:", "📝 <b>Example:</b>")
-                
-                # Проверка на дубликаты
-                is_duplicate = False
-                for h in history:
-                    if len(h) > 5 and h in content.lower():
-                        print(f"♻️ Duplicate found: {h}")
-                        is_duplicate = True
-                        break
-                
-                if is_duplicate:
-                    break # Пробуем другую тему (attempt)
-                
-                return content # Успех!
-
-            except Exception as e:
-                print(f"   ❌ Error {model}: {e}")
-                time.sleep(1)
-                
+        # Проверка на дубликаты
+        is_dup = False
+        for h in history:
+            if len(h) > 5 and h in final_text.lower():
+                print(f"♻️ Duplicate: {h}")
+                is_dup = True
+                break
+        
+        if not is_dup:
+            return final_text
+            
     return None
 
+# --- ОТПРАВКА ---
 def send_telegram(text):
-    print("--- Sending to Telegram ---")
-    url = f"[https://api.telegram.org/bot](https://api.telegram.org/bot){BOT_TOKEN}/sendMessage"
+    print("--- Sending ---")
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     data = {"chat_id": CHANNEL_ID, "text": text, "parse_mode": "HTML"}
     try:
-        resp = requests.post(url, data=data, timeout=10)
-        if resp.status_code == 200:
-            print("✅ Sent!")
-        else:
-            print(f"❌ Telegram Error: {resp.text}")
+        requests.post(url, data=data, timeout=10)
+        print("✅ Sent!")
     except Exception as e:
-        print(f"❌ Connection Error: {e}")
+        print(f"❌ Send Error: {e}")
 
 if __name__ == "__main__":
-    phrase = generate_phrase()
-    if phrase:
-        send_telegram(phrase)
-        save_to_history(phrase)
+    result = main_loop()
+    if result:
+        send_telegram(result)
+        save_to_history(result)
     else:
-        print("💀 Failed to generate.")
+        print("💀 Failed to generate unique phrase")
