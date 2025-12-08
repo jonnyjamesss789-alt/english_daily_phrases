@@ -42,6 +42,10 @@ replacements = {
         "Context:": "💡 <i>Context:</i>",
         "Example:": "💎 <b>Example:</b>"
     }
+for old, new in replacements.items():
+        # Заменяем и с двоеточием, и без (на всякий случай)
+        content = content.replace(old, new)
+        content = content.replace(old.replace(":", ""), new)
 
 def generate_phrase():
     # ИДЕАЛЬНЫЙ ПРОМПТ
