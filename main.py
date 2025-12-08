@@ -34,29 +34,6 @@ client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=OPENROUTER_API_KEY,
 )
-
-def format_message(content):
-    """
-    Эта функция принудительно расставляет смайлы и теги,
-    даже если нейросеть их забыла.
-    """
-    # 1. Убираем лишние Markdown символы, если они есть
-    content = content.replace("**", "").replace("###", "").strip()
-    
-    # 2. Принудительная замена заголовков на красивые
-    # Мы ищем просто слово "Phrase:" и меняем его на "🇬🇧 <b>Phrase:</b>"
-    replacements = {
-        "Phrase:": "🇬🇧 <b>Phrase:</b>",
-        "Transcription:": "🔊 <b>Transcription:</b>",
-        "Translation:": "🇷🇺 <b>Translation:</b>",
-        "Context:": "💡 <i>Context:</i>",
-        "Example:": "💎 <b>Example:</b>"
-    }
-    
-    for old, new in replacements.items():
-        # Заменяем и с двоеточием, и без (на всякий случай)
-        content = content.replace(old, new)
-        content = content.replace(old.replace(":", ""), new)
         
 def generate_phrase():
     # ИДЕАЛЬНЫЙ ПРОМПТ
@@ -81,6 +58,29 @@ def generate_phrase():
         "— [Продолжение диалога] (в скобках перевод)\n"
         "</blockquote>"
     )
+    
+    def format_message(content):
+    """
+    Эта функция принудительно расставляет смайлы и теги,
+    даже если нейросеть их забыла.
+    """
+    # 1. Убираем лишние Markdown символы, если они есть
+    content = content.replace("**", "").replace("###", "").strip()
+    
+    # 2. Принудительная замена заголовков на красивые
+    # Мы ищем просто слово "Phrase:" и меняем его на "🇬🇧 <b>Phrase:</b>"
+    replacements = {
+        "Phrase:": "🇬🇧 <b>Phrase:</b>",
+        "Transcription:": "🔊 <b>Transcription:</b>",
+        "Translation:": "🇷🇺 <b>Translation:</b>",
+        "Context:": "💡 <i>Context:</i>",
+        "Example:": "💎 <b>Example:</b>"
+    }
+    
+    for old, new in replacements.items():
+        # Заменяем и с двоеточием, и без (на всякий случай)
+        content = content.replace(old, new)
+        content = content.replace(old.replace(":", ""), new)
     
     for model in MODELS:
         print(f"--- [2] Пробую модель: {model} ...")
