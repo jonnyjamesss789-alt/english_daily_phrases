@@ -126,8 +126,8 @@ def generate_phrase():
         
         Example:
         <blockquote>
-        — [Dialog line 1] (перевод фразы на русский язык)
-        — [Dialog line 2] (перевод фразы на русский язык)
+        — <b>[Dialog line 1]</b> (перевод фразы на русский язык)
+        — <b>[Dialog line 2]</b> (перевод фразы на русский язык)
         </blockquote>
         """
 
