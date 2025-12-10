@@ -6,50 +6,40 @@ import random
 
 # --- НАСТРОЙКИ ---
 TIMEOUT_SECONDS = 50
-HISTORY_FILE = "history.txt"
 
-# ОБНОВЛЕННЫЙ СПИСОК МОДЕЛЕЙ (Более легкие и доступные)
+# ОБНОВЛЕННЫЙ СПИСОК МОДЕЛЕЙ (Проверенные и стабильные на OpenRouter)
+# Примечание: 70B модели часто имеют лимиты, поэтому добавлено больше 8B/7B.
 MODELS = [
-    # Google (Разные версии, если одна занята - сработает другая)
-    "google/gemini-2.0-flash-lite-preview-02-05:free",
-    "google/gemini-2.0-pro-exp-02-05:free",
-    
-    # Qwen (Очень надежная и быстрая)
-    "qwen/qwen-2.5-7b-instruct:free",
-    
-    # Llama (Берем 8b, так как на 70b часто лимиты)
-    "meta-llama/llama-3-8b-instruct:free",
-    
-    # DeepSeek (Популярная сейчас)
-    "deepseek/deepseek-r1-distill-llama-70b:free",
-    
-    # Mistral (Стабильная классика)
-    "mistralai/mistral-7b-instruct:free"
+    "meta-llama/llama-3-8b-instruct:free",           # Более легкая и надежная Llama
+    "mistralai/mistral-7b-instruct:free",           # Классика, почти всегда доступна
+    "google/gemini-2.5-flash:free",                 # Новая версия Gemini Flash
+    "qwen/qwen-14b-chat:free",                      # Более крупный Qwen
+    "deepseek/deepseek-llm-67b-chat:free"           # Крупная модель для качества
 ]
 
-# ТЕМЫ
+# СПИСОК ТЕМ для рандомизации запроса
 TOPICS = [
     "Travel", "Business", "Emotions", "Food", "Friendship", "Conflict", 
     "Money", "Health", "Time", "Weather", "Slang", "Idioms", "Hobbies", 
-    "Technology", "Relationships", "Driving", "Education", "Household", 
+    "Technology", "Relationships", "Education", "Household", 
     "Surprise", "Agreement", "Politeness", "Job Interview", "Movies"
 ]
 
-print("--- START ---")
+print("--- [1] НАЧАЛО РАБОТЫ СКРИПТА ---")
 
-# --- КЛЮЧИ ---
-def get_key(name):
-    val = os.environ.get(name)
-    if val:
-        return str(val).strip()
+# ФУНКЦИЯ ЧИСТКИ КЛЮЧЕЙ (На всякий случай)
+def get_env_key(key_name):
+    value = os.environ.get(key_name)
+    if value:
+        return str(value).strip()
     return None
 
-BOT_TOKEN = get_key("BOT_TOKEN")
-CHANNEL_ID = get_key("CHANNEL_ID")
-OPENROUTER_API_KEY = get_key("OPENROUTER_API_KEY")
+BOT_TOKEN = get_env_key("BOT_TOKEN")
+CHANNEL_ID = get_env_key("CHANNEL_ID")
+OPENROUTER_API_KEY = get_env_key("OPENROUTER_API_KEY")
 
 if not BOT_TOKEN or not CHANNEL_ID or not OPENROUTER_API_KEY:
-    print("❌ KEYS MISSING")
+    print("❌ ОШИБКА: Отсутствуют ключи в Secrets!")
     exit(1)
 
 client = OpenAI(
@@ -57,126 +47,88 @@ client = OpenAI(
     api_key=OPENROUTER_API_KEY,
 )
 
-# --- ИСТОРИЯ ---
-def load_history():
-    if not os.path.exists(HISTORY_FILE):
-        return []
-    try:
-        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-            return [line.strip().lower() for line in f.readlines()]
-    except:
-        return []
-
-def save_to_history(text):
-    try:
-        if "Phrase:" in text:
-            p = text.split("Phrase:")[1]
-            clean = p.split("Transcription:")[0].strip()
-            clean = clean.replace("<b>", "").replace("</b>", "")
-            
-            with open(HISTORY_FILE, "a", encoding="utf-8") as f:
-                f.write(clean + "\n")
-            print(f"💾 Saved: {clean}")
-    except Exception as e:
-        print(f"⚠️ Save Error: {e}")
-
-# --- ФОРМАТИРОВАНИЕ ---
-def format_text(text):
-    text = text.replace("```html", "").replace("```", "").strip()
+def generate_phrase():
+    # 1. Выбираем случайную тему, чтобы каждый запрос был уникальным
+    topic = random.choice(TOPICS)
+    print(f"🎲 Тема выбрана: {topic}")
     
-    clean_pairs = {
-        "<b>Phrase:</b>": "Phrase:", "<b>Transcription:</b>": "Transcription:",
-        "<b>Translation:</b>": "Translation:", "<b>Context:</b>": "Context:", 
-        "<b>Example:</b>": "Example:"
-    }
-    for k, v in clean_pairs.items():
-        text = text.replace(k, v)
-
-    emoji_pairs = {
-        "Phrase:": "🇺🇸 <b>Phrase:</b>",
-        "Transcription:": "🔊 <b>Transcription:</b>",
-        "Translation:": "🇷🇺 <b>Translation:</b>",
-        "Context:": "📃 <b>Context:</b>",
-        "Example:": "📝 <b>Example:</b>"
-    }
-    for k, v in emoji_pairs.items():
-        text = text.replace(k, v)
+    # ИДЕАЛЬНЫЙ ПРОМПТ
+    prompt = (
+        f"Сгенерируй одну полезную разговорную фразу на английском языке (уровень B1-B2) по теме: {topic}. "
+        "Вся описательная часть должна быть СТРОГО на РУССКОМ языке. "
+        "Используй HTML-теги. Обязательно делай отступы между блоками. "
+        "Формат ответа строго такой:\n\n"
         
-    return text
-
-# --- ГЕНЕРАЦИЯ ---
-def ask_ai(topic):
-    prompt = f"""
-Generate one useful English phrase (B1-B2 level).
-TOPIC: {topic}.
-Do not use Markdown blocks. Use HTML tags.
-
-Format:
-Phrase: [Phrase]
-Transcription: <i>[Russian transcription]</i>
-Translation: [Russian translation]
-Context: <i>[Russian context]</i>
-Example:
-<blockquote>
-- [Dialog]
-- [Dialog]
-</blockquote>
-"""
+        "🇺🇸 <b>Phrase:</b> [Сама фраза]\n\n"
+        
+        "🔊 <b>Transcription:</b> <i>[Правильная транскрипция с транслитерацией русскими буквами.]</i>\n\n"
+        
+        "🇷🇺 <b>Translation:</b> [Перевод фразы]\n\n"
+        
+        "📃 <b>Context:</b> <i>[Объяснение на русском в 1-2 предложениях, когда это используется]</i>\n\n"
+        
+        "📝 <b>Example:</b>\n"
+        "<blockquote>"
+        "— [Пример диалога на английском] (в скобках перевод)\n"
+        "— [Продолжение диалога] (в скобках перевод)\n"
+        "</blockquote>"
+    )
+    
     for model in MODELS:
+        print(f"--- [2] Пробую модель: {model} ...")
         try:
-            print(f"⏳ Asking {model}...")
-            resp = client.chat.completions.create(
+            start_time = time.time()
+            response = client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
                 timeout=TIMEOUT_SECONDS,
-                extra_headers={"HTTP-Referer": "https://github.com"}
+                extra_headers={"HTTP-Referer": "https://github.com", "X-Title": "English Bot"}
             )
-            return resp.choices[0].message.content
+            elapsed = time.time() - start_time
+            print(f"✅ УСПЕХ! Модель {model} ответила за {elapsed:.2f} сек!")
+            
+            content = response.choices[0].message.content
+            # Убираем внешние блоки кода, которые иногда добавляет LLM
+            content = content.replace("```html", "").replace("```", "").strip() 
+            return content
+            
         except Exception as e:
-            print(f"❌ Error {model}: {e}")
+            # Выводим код ошибки для диагностики (например, 429 или 404)
+            print(f"❌ ОШИБКА с моделью {model}: {e}") 
+            print("Переключаюсь на следующую...")
             time.sleep(1)
-    return None
-
-def main_loop():
-    history = load_history()
-    
-    for i in range(3):
-        topic = random.choice(TOPICS)
-        print(f"🎲 Topic: {topic}")
-        
-        raw_text = ask_ai(topic)
-        if not raw_text:
-            continue
-            
-        final_text = format_text(raw_text)
-        
-        is_dup = False
-        for h in history:
-            if len(h) > 5 and h in final_text.lower():
-                print(f"♻️ Duplicate: {h}")
-                is_dup = True
-                break
-        
-        if not is_dup:
-            return final_text
             
     return None
 
-# --- ОТПРАВКА ---
-def send_telegram(text):
-    print("--- Sending ---")
+def send_telegram_message(text):
+    print("--- [3] Отправляю сообщение в Telegram...")
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    data = {"chat_id": CHANNEL_ID, "text": text, "parse_mode": "HTML"}
+    data = {
+        "chat_id": CHANNEL_ID,
+        "text": text,
+        "parse_mode": "HTML" # Режим HTML включен
+    }
     try:
-        requests.post(url, data=data, timeout=10)
-        print("✅ Sent!")
+        response = requests.post(url, data=data, timeout=10)
+        
+        if response.status_code == 200:
+            print("--- [4] ✅ СООБЩЕНИЕ ОТПРАВЛЕНО! Проверяй канал.")
+        else:
+            # Печатаем ответ сервера, чтобы понять причину ошибки Telegram
+            print(f"!!! ОШИБКА TELEGRAM !!! Код: {response.status_code}")
+            print(f"Ответ сервера: {response.text}")
+            
     except Exception as e:
-        print(f"❌ Send Error: {e}")
+        print(f"!!! ОШИБКА ПОДКЛЮЧЕНИЯ К TELEGRAM !!!: {e}")
 
 if __name__ == "__main__":
-    result = main_loop()
-    if result:
-        send_telegram(result)
-        save_to_history(result)
+    phrase = generate_phrase()
+    if phrase:
+        # Добавляем эмодзи в начало, если их нет, для красоты
+        if not phrase.startswith(("🇺🇸", "🇬🇧")):
+             phrase = "🇺🇸 " + phrase
+        send_telegram_message(phrase)
     else:
-        print("💀 Failed to generate unique phrase")
+        print("💀 ВСЕ МОДЕЛИ НЕДОСТУПНЫ. Попробуйте позже.")
+
+print("--- [КОНЕЦ] ---")
