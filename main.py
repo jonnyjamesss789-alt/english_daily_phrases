@@ -9,10 +9,11 @@ TIMEOUT_SECONDS = 60
 
 # СПИСОК МОДЕЛЕЙ (Самые живучие + твой запрос на Qwen)
 MODELS = [
-    # Тот самый Qwen (версия 2.5, так как 3 еще нет в доступе)
-    "qwen/qwen3-235b-a22b:free",
+    # Тот самый Qwen, который ты просил
+    "qwen/qwen-2.5-72b-instruct:free", 
+    # (Примечание: qwen3-235b часто недоступен, 2.5-72b сейчас стабильнее, но можно пробовать)
     
-    # Mistral (Он у тебя сработал на скриншоте!)
+    # Mistral (Он у тебя сработал, но выдал пустоту. Оставляем как запасной)
     "mistralai/mistral-7b-instruct:free",
     
     # Надежная Llama
@@ -85,8 +86,10 @@ def generate_phrase():
             elapsed = time.time() - start_time
             
             content = response.choices[0].message.content
-            if not content: 
-                print("⚠️ Empty response")
+            
+            # ПРОВЕРКА НА ПУСТОТУ (Фикс проблемы 0.20 сек)
+            if not content or len(content) < 10: 
+                print(f"⚠️ Empty response from {model}. Skipping...")
                 continue
                 
             # Чистим мусор
