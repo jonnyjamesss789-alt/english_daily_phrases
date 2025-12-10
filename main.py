@@ -9,9 +9,7 @@ import re
 TIMEOUT_SECONDS = 120 
 HISTORY_FILE = "history.txt"
 
-# ТВОЯ МОДЕЛЬ
-# Используем официальный алиас DeepSeek R1. 
-# Он сам направит на лучшую доступную версию (в том числе на qwen-distill, если она лучше).
+# ТВОЯ МОДЕЛЬ (Официальный алиас DeepSeek R1)
 MODEL_NAME = "deepseek/deepseek-r1" 
 
 TOPICS = [
@@ -87,11 +85,12 @@ def clean_and_format(text):
     lines = text.split('\n')
     new_lines = []
     for line in lines:
+        processed_line = line
         for plain, fancy in replacements.items():
             # Заменяем, только если там еще нет жирного шрифта
-            if plain in line and "<b>" not in line:
-                line = line.replace(plain, fancy)
-        new_lines.append(line)
+            if plain in processed_line and "<b>" not in processed_line:
+                processed_line = processed_line.replace(plain, fancy)
+        new_lines.append(processed_line)
         
     return "\n".join(new_lines)
 
@@ -184,7 +183,7 @@ def send_telegram(text):
     try:
         resp = requests.post(url, data=data_plain, timeout=10)
         if resp.status_code == 200:
-            print("✅ SENT (PLAIN TEXT FLBACK)!")
+            print("✅ SENT (PLAIN TEXT FALLBACK)!")
             return True
         else:
             print(f"❌ FINAL ERROR: {resp.text}")
