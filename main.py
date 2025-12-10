@@ -117,13 +117,17 @@ def generate_phrase():
 
         Template:
         Phrase: [English phrase]
+        
         Transcription: <i>[Russian transcription]</i>
+        
         Translation: [Russian translation]
+        
         Context: <i>[Explanation in Russian]</i>
+        
         Example:
         <blockquote>
-        — [Dialog line 1]
-        — [Dialog line 2]
+        — [Dialog line 1] (перевод фразы на русский язык)
+        — [Dialog line 2] (перевод фразы на русский язык)
         </blockquote>
         """
 
