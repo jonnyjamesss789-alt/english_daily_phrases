@@ -106,7 +106,7 @@ def generate_phrase():
 
         # Prompt explicitly asking for clean HTML
         prompt = f"""
-        Generate ONE useful English phrase (level B1-B2) about: {topic}.
+        Generate ONE useful English phrase from a native speaker, not from a textbook (level A2-B1) about: {topic}.
         Output strictly in the format below.
         NO markdown code blocks. NO introductory text.
 
