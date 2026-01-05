@@ -8,7 +8,7 @@ from openai import OpenAI
 # --- НАСТРОЙКИ ---
 HISTORY_FILE = "history.txt"
 TIMEOUT_SECONDS = 60
-MODEL_NAME = "openai/gpt-4o-mini" # Умная модель для создания ловушек
+MODEL_NAME = "openai/gpt-4o-mini"
 
 # --- КЛЮЧИ ---
 def get_key(name):
@@ -34,23 +34,40 @@ def load_random_phrase():
         return None
     try:
         with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-            lines = [line.strip() for line in f.readlines() if line.strip()]
-        if not lines:
+            raw_lines = f.readlines()
+            
+        valid_phrases = []
+        
+        # --- УМНАЯ ФИЛЬТРАЦИЯ ---
+        for line in raw_lines:
+            line = line.strip()
+            
+            # 1. Если строка пустая - пропускаем
+            if not line:
+                continue
+                
+            # 2. Если в строке НЕТ английских букв (только смайлы или цифры) - пропускаем
+            if not re.search(r'[a-zA-Z]', line):
+                continue
+            
+            # 3. Чистим строку от мусора
+            clean = line.replace("🇺🇸", "").replace("🇬🇧", "").replace("Phrase:", "")
+            # Удаляем всё в начале, пока не встретим букву (чтобы убрать смайлы перед текстом)
+            clean = re.sub(r'^[^a-zA-Z]+', '', clean).strip()
+            
+            # 4. Если после чистки что-то осталось (длиннее 2 букв), добавляем в список
+            if len(clean) > 2:
+                valid_phrases.append(clean)
+        
+        if not valid_phrases:
+            print("⚠️ No valid phrases found in history.")
             return None
+            
+        # Выбираем случайную из УЖЕ очищенных
+        return random.choice(valid_phrases)
         
-        raw_phrase = random.choice(lines)
-        
-        # --- ЧИСТКА ОТ СМАЙЛОВ И МУСОРА ---
-        # 1. Убираем известные флаги
-        clean = raw_phrase.replace("🇺🇸", "").replace("🇬🇧", "")
-        # 2. Убираем "Phrase:" если она есть
-        clean = clean.replace("Phrase:", "")
-        # 3. Регулярка: удаляем всё в начале строки, пока не встретим первую букву (a-z)
-        # Это удалит любые смайлы, пробелы, скобки в начале.
-        clean = re.sub(r'^[^a-zA-Z]+', '', clean)
-        
-        return clean.strip()
-    except:
+    except Exception as e:
+        print(f"❌ Error loading history: {e}")
         return None
 
 def generate_quiz_data(phrase):
@@ -104,7 +121,6 @@ def send_telegram_poll(phrase, quiz_data):
     # Добавлены явные переносы строк (\n\n)
     question_text = f"🎯 Проверь себя!\n\n🇬🇧 {phrase}\n\n👇 Выбери верный перевод:"
     
-    # Если вопрос слишком длинный для Телеграма (лимит 300), сокращаем заголовок
     if len(question_text) > 295:
         question_text = f"🇬🇧 {phrase}\n\n👇 Перевод:"
 
@@ -132,9 +148,9 @@ def send_telegram_poll(phrase, quiz_data):
 if __name__ == "__main__":
     phrase = load_random_phrase()
     if phrase:
-        print(f"Found phrase: {phrase}") # Для проверки в логах
+        print(f"Selected phrase: {phrase}")
         data = generate_quiz_data(phrase)
         if data:
             send_telegram_poll(phrase, data)
     else:
-        print("⚠️ No history file found or it's empty.")
+        print("⚠️ No valid phrase could be loaded.")
