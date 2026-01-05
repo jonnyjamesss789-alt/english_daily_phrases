@@ -102,7 +102,7 @@ def send_telegram_poll(phrase, quiz_data):
         "chat_id": CHANNEL_ID,
         "question": f"🇬🇧 Как переводится: {phrase}?",
         "options": json.dumps(options),
-        "is_anonymous": False, # Чтобы видеть, кто ответил (можно True)
+        "is_anonymous": True, # <--- ИСПРАВЛЕНО: Для каналов обязательно True
         "type": "quiz", # Режим викторины
         "correct_option_id": correct_id,
         "explanation": f"Correct translation: {quiz_data['correct']}" # Подсказка после ответа
