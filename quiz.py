@@ -43,13 +43,12 @@ def load_random_phrase():
 def generate_quiz_data(phrase):
     print(f"🎲 Generating quiz for: {phrase}")
     
-    # Просим DeepSeek вернуть строго JSON
     prompt = f"""
     I have an English phrase: "{phrase}".
     Create a Russian translation quiz for it.
     
     Task:
-    1. Provide the correct Russian translation.
+    1. Provide the correct Russian translation (keep it short, max 5-6 words).
     2. Provide 2 INCORRECT but plausible Russian translations (distractors).
     3. Output strictly in JSON format.
     
@@ -70,12 +69,9 @@ def generate_quiz_data(phrase):
         )
         
         content = response.choices[0].message.content
-        
-        # Чистим от <think> и markdown
         content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL)
         content = content.replace("```json", "").replace("```", "").strip()
         
-        # Парсим JSON
         data = json.loads(content)
         return data
     except Exception as e:
@@ -86,32 +82,42 @@ def send_telegram_poll(phrase, quiz_data):
     print("--- Sending Quiz ---")
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPoll"
     
-    # Формируем список вариантов
+    # 1. Формируем варианты ответа
     options = [
         quiz_data["correct"],
         quiz_data["wrong1"],
         quiz_data["wrong2"]
     ]
-    # Перемешиваем варианты, чтобы правильный не всегда был первым
     random.shuffle(options)
-    
-    # Находим индекс правильного ответа после перемешивания
     correct_id = options.index(quiz_data["correct"])
     
+    # 2. Красивое оформление вопроса
+    # Лимит Телеграм на вопрос - 300 символов.
+    
+    # Вариант красивый:
+    question_text = f"🎯 Проверь себя!\n\n🇬🇧 {phrase}\n\n👇 Выбери верный перевод:"
+    
+    # Если фраза очень длинная, используем компактный вариант:
+    if len(question_text) > 295:
+        question_text = f"🇬🇧 {phrase}\n\n👇 Перевод:"
+
+    # 3. Красивое объяснение (появляется после ответа)
+    explanation_text = f"✅ Верно!\n\n🇬🇧 {phrase}\n🇷🇺 {quiz_data['correct']}"
+
     payload = {
         "chat_id": CHANNEL_ID,
-        "question": f"🇬🇧 Как переводится: {phrase}?",
+        "question": question_text,
         "options": json.dumps(options),
-        "is_anonymous": True, # <--- ИСПРАВЛЕНО: Для каналов обязательно True
-        "type": "quiz", # Режим викторины
+        "is_anonymous": True, # ОБЯЗАТЕЛЬНО True для каналов
+        "type": "quiz",
         "correct_option_id": correct_id,
-        "explanation": f"Correct translation: {quiz_data['correct']}" # Подсказка после ответа
+        "explanation": explanation_text
     }
     
     try:
         resp = requests.post(url, data=payload, timeout=10)
         if resp.status_code == 200:
-            print("✅ Quiz sent!")
+            print("✅ Quiz sent successfully!")
         else:
             print(f"❌ Telegram Error: {resp.text}")
     except Exception as e:
