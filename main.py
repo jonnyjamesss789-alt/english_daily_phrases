@@ -10,7 +10,7 @@ TIMEOUT_SECONDS = 120
 HISTORY_FILE = "history.txt"
 
 # YOUR MODEL
-MODEL_NAME = "deepseek/deepseek-r1"
+MODEL_NAME = "openai/gpt-4o-mini"
 
 TOPICS = [
     "Travel", "Business", "Emotions", "Food", "Friendship", "Conflict",
