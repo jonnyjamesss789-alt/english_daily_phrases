@@ -8,11 +8,7 @@ from openai import OpenAI
 # --- НАСТРОЙКИ ---
 HISTORY_FILE = "history.txt"
 TIMEOUT_SECONDS = 60
-
-# ТВОЯ МОДЕЛЬ
-# Переключили на GPT-4o Mini, как ты просил.
-# Она отлично генерирует JSON и понимает нюансы языка.
-MODEL_NAME = "openai/gpt-4o-mini"
+MODEL_NAME = "openai/gpt-4o-mini" # Умная модель для создания ловушек
 
 # --- КЛЮЧИ ---
 def get_key(name):
@@ -41,32 +37,39 @@ def load_random_phrase():
             lines = [line.strip() for line in f.readlines() if line.strip()]
         if not lines:
             return None
-        return random.choice(lines)
+        
+        raw_phrase = random.choice(lines)
+        
+        # --- ЧИСТКА ОТ СМАЙЛОВ И МУСОРА ---
+        # 1. Убираем известные флаги
+        clean = raw_phrase.replace("🇺🇸", "").replace("🇬🇧", "")
+        # 2. Убираем "Phrase:" если она есть
+        clean = clean.replace("Phrase:", "")
+        # 3. Регулярка: удаляем всё в начале строки, пока не встретим первую букву (a-z)
+        # Это удалит любые смайлы, пробелы, скобки в начале.
+        clean = re.sub(r'^[^a-zA-Z]+', '', clean)
+        
+        return clean.strip()
     except:
         return None
 
 def generate_quiz_data(phrase):
     print(f"🎲 Generating quiz for: {phrase}")
     
-    # Усиленный промпт для сложных вариантов
     prompt = f"""
     I have an English phrase: "{phrase}".
     Create a challenging Russian translation quiz for it.
     
-    CRITICAL INSTRUCTIONS FOR WRONG ANSWERS (DISTRACTORS):
-    1. They must be grammatically CORRECT Russian sentences. NO TYPOS.
-    2. They must make sense but have a DIFFERENT meaning.
-    3. Use "traps":
-       - Literal translations of idioms (if applicable).
-       - Words that look/sound similar (false friends).
-       - Wrong context or opposite meaning.
-    4. Do NOT use obvious nonsense or random words. Make the user THINK.
+    CRITICAL INSTRUCTIONS FOR WRONG ANSWERS:
+    1. Must be grammatically CORRECT Russian sentences. NO TYPOS.
+    2. Must have a DIFFERENT meaning (traps, false friends, literal translations).
+    3. Do NOT use nonsense. Make the user THINK.
     
-    Output STRICTLY in JSON format:
+    Output STRICTLY in JSON:
     {{
-        "correct": "Correct Russian translation (short)",
-        "wrong1": "Plausible but incorrect translation (trap 1)",
-        "wrong2": "Plausible but incorrect translation (trap 2)"
+        "correct": "Correct translation",
+        "wrong1": "Trap translation 1",
+        "wrong2": "Trap translation 2"
     }}
     """
 
@@ -79,12 +82,8 @@ def generate_quiz_data(phrase):
         )
         
         content = response.choices[0].message.content
-        
-        # Чистка от возможного форматирования markdown
         content = content.replace("```json", "").replace("```", "").strip()
-        
-        data = json.loads(content)
-        return data
+        return json.loads(content)
     except Exception as e:
         print(f"❌ Error generating quiz: {e}")
         return None
@@ -93,7 +92,6 @@ def send_telegram_poll(phrase, quiz_data):
     print("--- Sending Quiz ---")
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPoll"
     
-    # 1. Варианты ответа
     options = [
         quiz_data["correct"],
         quiz_data["wrong1"],
@@ -102,21 +100,21 @@ def send_telegram_poll(phrase, quiz_data):
     random.shuffle(options)
     correct_id = options.index(quiz_data["correct"])
     
-    # 2. Оформление вопроса
-    question_text = f"🎯 Проверь себя!\n\n🇬🇧 {phrase}\n\n👇 Выбери верный перевод:\n"
+    # --- ОФОРМЛЕНИЕ ВОПРОСА ---
+    # Добавлены явные переносы строк (\n\n)
+    question_text = f"🎯 Проверь себя!\n\n🇬🇧 {phrase}\n\n👇 Выбери верный перевод:"
     
-    # Если слишком длинно, сокращаем
+    # Если вопрос слишком длинный для Телеграма (лимит 300), сокращаем заголовок
     if len(question_text) > 295:
         question_text = f"🇬🇧 {phrase}\n\n👇 Перевод:"
 
-    # 3. Объяснение
     explanation_text = f"✅ Верно!\n\n🇬🇧 {phrase}\n🇷🇺 {quiz_data['correct']}"
 
     payload = {
         "chat_id": CHANNEL_ID,
         "question": question_text,
         "options": json.dumps(options),
-        "is_anonymous": True, # Обязательно True для каналов
+        "is_anonymous": True,
         "type": "quiz",
         "correct_option_id": correct_id,
         "explanation": explanation_text
@@ -134,6 +132,7 @@ def send_telegram_poll(phrase, quiz_data):
 if __name__ == "__main__":
     phrase = load_random_phrase()
     if phrase:
+        print(f"Found phrase: {phrase}") # Для проверки в логах
         data = generate_quiz_data(phrase)
         if data:
             send_telegram_poll(phrase, data)
