@@ -9,6 +9,11 @@ from openai import OpenAI
 HISTORY_FILE = "history.txt"
 TIMEOUT_SECONDS = 60
 
+# ТВОЯ МОДЕЛЬ
+# Переключили на GPT-4o Mini, как ты просил.
+# Она отлично генерирует JSON и понимает нюансы языка.
+MODEL_NAME = "openai/gpt-4o-mini"
+
 # --- КЛЮЧИ ---
 def get_key(name):
     val = os.environ.get(name)
@@ -43,33 +48,39 @@ def load_random_phrase():
 def generate_quiz_data(phrase):
     print(f"🎲 Generating quiz for: {phrase}")
     
+    # Усиленный промпт для сложных вариантов
     prompt = f"""
     I have an English phrase: "{phrase}".
-    Create a Russian translation quiz for it.
+    Create a challenging Russian translation quiz for it.
     
-    Task:
-    1. Provide the correct Russian translation (keep it short, max 5-6 words).
-    2. Provide 2 INCORRECT but plausible Russian translations (distractors).
-    3. Output strictly in JSON format.
+    CRITICAL INSTRUCTIONS FOR WRONG ANSWERS (DISTRACTORS):
+    1. They must be grammatically CORRECT Russian sentences. NO TYPOS.
+    2. They must make sense but have a DIFFERENT meaning.
+    3. Use "traps":
+       - Literal translations of idioms (if applicable).
+       - Words that look/sound similar (false friends).
+       - Wrong context or opposite meaning.
+    4. Do NOT use obvious nonsense or random words. Make the user THINK.
     
-    JSON Structure:
+    Output STRICTLY in JSON format:
     {{
-        "correct": "Правильный перевод",
-        "wrong1": "Неправильный перевод 1",
-        "wrong2": "Неправильный перевод 2"
+        "correct": "Correct Russian translation (short)",
+        "wrong1": "Plausible but incorrect translation (trap 1)",
+        "wrong2": "Plausible but incorrect translation (trap 2)"
     }}
     """
 
     try:
         response = client.chat.completions.create(
-            model="openai/gpt-4o-mini",
+            model=MODEL_NAME,
             messages=[{"role": "user", "content": prompt}],
             timeout=TIMEOUT_SECONDS,
             extra_headers={"HTTP-Referer": "https://github.com"}
         )
         
         content = response.choices[0].message.content
-        content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL)
+        
+        # Чистка от возможного форматирования markdown
         content = content.replace("```json", "").replace("```", "").strip()
         
         data = json.loads(content)
@@ -82,7 +93,7 @@ def send_telegram_poll(phrase, quiz_data):
     print("--- Sending Quiz ---")
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPoll"
     
-    # 1. Формируем варианты ответа
+    # 1. Варианты ответа
     options = [
         quiz_data["correct"],
         quiz_data["wrong1"],
@@ -91,24 +102,21 @@ def send_telegram_poll(phrase, quiz_data):
     random.shuffle(options)
     correct_id = options.index(quiz_data["correct"])
     
-    # 2. Красивое оформление вопроса
-    # Лимит Телеграм на вопрос - 300 символов.
-    
-    # Вариант красивый:
+    # 2. Оформление вопроса
     question_text = f"🎯 Проверь себя!\n\n🇬🇧 {phrase}\n\n👇 Выбери верный перевод:"
     
-    # Если фраза очень длинная, используем компактный вариант:
+    # Если слишком длинно, сокращаем
     if len(question_text) > 295:
         question_text = f"🇬🇧 {phrase}\n\n👇 Перевод:"
 
-    # 3. Красивое объяснение (появляется после ответа)
+    # 3. Объяснение
     explanation_text = f"✅ Верно!\n\n🇬🇧 {phrase}\n🇷🇺 {quiz_data['correct']}"
 
     payload = {
         "chat_id": CHANNEL_ID,
         "question": question_text,
         "options": json.dumps(options),
-        "is_anonymous": True, # ОБЯЗАТЕЛЬНО True для каналов
+        "is_anonymous": True, # Обязательно True для каналов
         "type": "quiz",
         "correct_option_id": correct_id,
         "explanation": explanation_text
