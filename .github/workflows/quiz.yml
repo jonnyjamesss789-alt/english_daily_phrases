@@ -1,0 +1,32 @@
+name: Daily English Quiz
+
+on:
+  schedule:
+    # Запуск каждый день в 16:00 UTC (вечерний тест)
+    - cron: '0 15 * * *'
+  workflow_dispatch: # Кнопка для ручного запуска
+
+permissions:
+  contents: read
+
+jobs:
+  run-quiz:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: pip install requests openai
+
+      - name: Run Quiz Script
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: python quiz.py
