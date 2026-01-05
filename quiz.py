@@ -103,7 +103,7 @@ def send_telegram_poll(phrase, quiz_data):
     correct_id = options.index(quiz_data["correct"])
     
     # 2. Оформление вопроса
-    question_text = f"🎯 Проверь себя!\n\n🇬🇧 {phrase}\n\n👇 Выбери верный перевод:"
+    question_text = f"🎯 Проверь себя!\n\n🇬🇧 {phrase}\n\n👇 Выбери верный перевод:\n"
     
     # Если слишком длинно, сокращаем
     if len(question_text) > 295:
