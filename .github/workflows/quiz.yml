@@ -3,7 +3,7 @@ name: Daily English Quiz
 on:
   schedule:
     # Запуск каждый день в 16:00 UTC (вечерний тест)
-    - cron: '0 15 * * *'
+    - cron: '0 12 * * *'
   workflow_dispatch: # Кнопка для ручного запуска
 
 permissions:
