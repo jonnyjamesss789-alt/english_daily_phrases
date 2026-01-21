@@ -103,3 +103,6 @@ What's up?
 It's freezing outside! 
 
 🔊
+It's pouring outside! 
+
+🔊
